@@ -160,7 +160,6 @@ int timeoutSchedule(PcbPointer* queues, InputDataPointer data, int q) {
     //3. 선점점에 도달하는 데이터인지 아닌지 확인하고
     //4. 각각 별도로 스케줄링.
     PcbPointer selectedPcb = NULL;
-    PcbPointer currentJob = NULL;
     int queueIndex;
 
     for (queueIndex = 0; queues[queueIndex] != NULL; queueIndex++) {
@@ -190,13 +189,11 @@ int timeoutSchedule(PcbPointer* queues, InputDataPointer data, int q) {
         selectedPcb->rightLink = NULL;
 
         if (isLastQueue(queueIndex)) {
-            currentJob = queues[queueIndex];
-            inputPcbToQueueLast(currentJob, selectedPcb);
+            inputPcbToQueueLast(queues[queueIndex], selectedPcb);
         }
         
         if (isNextQueueNotEmpty(queues, queueIndex)) {
-            PcbPointer currentJob = queues[queueIndex + 1];
-            inputPcbToQueueLast(currentJob, selectedPcb);
+            inputPcbToQueueLast(queues[queueIndex + 1], selectedPcb);
         } else {
             queues[queueIndex + 1] = selectedPcb;
         }
@@ -206,7 +203,7 @@ int timeoutSchedule(PcbPointer* queues, InputDataPointer data, int q) {
 }
 
 bool isLastQueue(int index) {
-    return index == QUEUE_SIZE;
+    return index == QUEUE_SIZE - 1;
 }
 
 bool isUnderTimeQuantum(int computingTime, int q) {
