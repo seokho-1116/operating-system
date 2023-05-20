@@ -166,7 +166,6 @@ void inputPcbToQueueLast(PcbPointer* queue, PcbPointer* pcb) {
     while (head->rightLink != NULL) {
         head = head->rightLink;
     }
-<<<<<<< HEAD
 
     head->rightLink = (*pcb);
     (*pcb)->leftLink = head;
@@ -174,19 +173,6 @@ void inputPcbToQueueLast(PcbPointer* queue, PcbPointer* pcb) {
 
 int scheduleProcess(PcbPointer* queues, int time, int* elapsedTime) {
     PcbPointer selectedQueue = NULL;
-=======
-    currentJob->rightLink = newJob;
-    newJob->leftLink = currentJob;
-}
-
-int timeoutSchedule(PcbPointer* queues, InputDataPointer data, int q) {
-    //TODO: 타임아웃 스케줄링
-    //1. 스케줄링할 큐 선정
-    //2. 큐에서 데이터 스케줄링
-    //3. 선점점에 도달하는 데이터인지 아닌지 확인하고
-    //4. 각각 별도로 스케줄링.
-    PcbPointer selectedPcb = NULL;
->>>>>>> d81c0dc10d4ae05de52d6c3c7c5398ea4e30c390
     int queueIndex;
 
     for (queueIndex = 0; queueIndex < QUEUE_SIZE; queueIndex++) {
@@ -223,7 +209,6 @@ int timeoutSchedule(PcbPointer* queues, InputDataPointer data, int q) {
 
         selectedQueue->remainTime -= timeForEachQueue;
 
-<<<<<<< HEAD
         movePcbToNextQueue(queues, &selectedQueue, queueIndex);
     }
 
@@ -242,16 +227,6 @@ void printAllDataInQueues(PcbPointer* queues, int elapsedTime) {
                 head = head->rightLink;
             }
             printf("\n\n");
-=======
-        if (isLastQueue(queueIndex)) {
-            inputPcbToQueueLast(queues[queueIndex], selectedPcb);
-        }
-        
-        if (isNextQueueNotEmpty(queues, queueIndex)) {
-            inputPcbToQueueLast(queues[queueIndex + 1], selectedPcb);
-        } else {
-            queues[queueIndex + 1] = selectedPcb;
->>>>>>> d81c0dc10d4ae05de52d6c3c7c5398ea4e30c390
         }
     }
 }
@@ -260,7 +235,6 @@ bool isNotFirstQueue(int index) {
     return index != 0;
 }
 
-<<<<<<< HEAD
 void removePcbLink(PcbPointer* queue, PcbPointer* pcb) {
     if (isLastDataInQueue(*pcb)) {
         (*queue) = NULL;
@@ -277,10 +251,6 @@ bool isLastDataInQueue(PcbPointer pcb) {
 
 bool isUnderTimeQuantum(int remainTime, int time) {
     return remainTime <= time;
-=======
-bool isLastQueue(int index) {
-    return index == QUEUE_SIZE - 1;
->>>>>>> d81c0dc10d4ae05de52d6c3c7c5398ea4e30c390
 }
 
 void printPcbInfo(PcbPointer pcb) {
@@ -311,12 +281,6 @@ bool isLastQueue(int index) {
     return index == QUEUE_SIZE - 1;
 }
 
-<<<<<<< HEAD
 void scheduleWithRemainder(PcbPointer* queues, int time, int* elapsedTime) {
     while (scheduleProcess(queues, time, elapsedTime) == SUCCEED);
 }
-=======
-void scheduleWithRemainder() {
-    //TODO: 나머지 스케줄링
-}
->>>>>>> d81c0dc10d4ae05de52d6c3c7c5398ea4e30c390
