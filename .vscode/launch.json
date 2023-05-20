@@ -1,24 +1,24 @@
 {
   "version": "0.2.0",
   "configurations": [
-    {
-      "name": "C/C++ Runner: Debug Session",
-      "type": "cppdbg",
-      "request": "launch",
-      "args": [],
-      "stopAtEntry": false,
-      "externalConsole": false,
-      "cwd": "/home/server/operating system",
-      "program": "/home/server/operating system/build/Debug/outDebug",
-      "MIMode": "gdb",
-      "miDebuggerPath": "/usr/bin/gdb",
-      "setupCommands": [
-        {
-          "description": "Enable pretty-printing for gdb",
-          "text": "-enable-pretty-printing",
-          "ignoreFailures": true
-        }
-      ]
-    }
+      {
+          "name": "Run test.c",
+          "preLaunchTask": "Compile test.c",
+          "type": "cppdbg",
+          "request": "launch",
+          "program": "${workspaceFolder}/test.out",
+          "args": ["20"],
+          "stopAtEntry": false,
+          "cwd": "${workspaceFolder}/",
+          "externalConsole": false,
+          "MIMode": "gdb",
+          "setupCommands": [
+              {
+                  "description": "Enable pretty-printing for gdb",
+                  "text": "-enable-pretty-printing",
+                  "ignoreFailures": true
+              }
+          ]
+      },
   ]
 }

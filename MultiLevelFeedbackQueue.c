@@ -2,24 +2,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <math.h>
 
 #define QUEUE_SIZE 5
 #define FILE_NAME "input.txt"
 #define INSERT 0
 #define TIMEOUT 1
 #define COMPLETE -1
-
-int currentTime;
+#define SUCCEED 3
+#define QUEUE_EMPTY 4
 
 typedef struct Pcb* PcbPointer;
 struct Pcb {
     int type;
     int processId;
     int priority;
+    int remainTime;
     int computingTime;
     int queueId;
     int turnAroundTime;
-    int waitTime;
+    int arrivalTime;
     PcbPointer leftLink;
     PcbPointer rightLink;
 };
@@ -27,39 +29,49 @@ struct Pcb {
 typedef struct InputData* InputDataPointer;
 struct InputData {
     int type;
+    int processId;
     int priority;
     int computingTime;
 };
 
-void scheduleWithData(PcbPointer*, int);
-void initializeQueue(PcbPointer*);
-InputDataPointer extractDataFromInput(FILE*, char*);
-void inputDataToQueue(PcbPointer*, InputDataPointer);
-void timeoutSchedule(PcbPointer*, InputDataPointer, int);
-void inputPcbToQueueLast(PcbPointer*, PcbPointer*);
-bool isLastQueue(int);
-bool isUnderTimeQuantum(int, int);
-bool isNextQueueNotEmpty(PcbPointer*, int);
+void scheduleWithData(PcbPointer*, int, int*);
 FILE* openFile(void);
-void scheduleWithRemainder();
-InputDataPointer extractValue(char* line);
+InputDataPointer extractDataFromInput(FILE*, char*);
+InputDataPointer extractValue(char*);
+void inputDataToQueue(PcbPointer*, InputDataPointer, int, int);
+bool isQueueEmpty(PcbPointer*, int);
+void inputPcbToQueueLast(PcbPointer*, PcbPointer*);
+int scheduleProcess(PcbPointer*, int, int*);
+void printAllDataInQueues(PcbPointer* queues, int);
+bool isNotFirstQueue(int);
+void removePcbLink(PcbPointer*, PcbPointer*);
+bool isLastDataInQueue(PcbPointer);
+bool isUnderTimeQuantum(int, int);
+void printPcbInfo(PcbPointer);
+void movePcbToNextQueue(PcbPointer*, PcbPointer*, int);
+bool isLastQueue(int);
+void scheduleWithRemainder(PcbPointer*, int, int*);
 
 int main(int argc, char const *argv[]) {
-    int q = 1;
-    PcbPointer queues[5] = { NULL };
+	if (argc != 2) {
+		printf("Usage : %s <TIME>\n", argv[0]);
+		exit(1);
+	}
 
-    //TODO: 시간 할당량 옵션 지정.
-    initializeQueue(queues);
-    scheduleWithData(queues);
-    scheduleWithRemainder();
+    int time = atoi(argv[1]);
+    PcbPointer queues[QUEUE_SIZE] = { NULL };
+    int elapsedTime = 0;
+
+    printf("prcessId\t queueId\t priority\t computingTime\t turnAroundTime\n");
+
+    scheduleWithData(queues, time, &elapsedTime);
+    scheduleWithRemainder(queues, time, &elapsedTime);
 }
 
-void initializeQueue(PcbPointer* queues) {
-}
-
-void scheduleWithData(PcbPointer* queues, int q) {
+void scheduleWithData(PcbPointer* queues, int time, int* elapsedTime) {
     char* line = NULL;
     FILE* filePointer = NULL;
+    int timeoutCount = 0;
 
     filePointer = openFile();
 
@@ -67,10 +79,11 @@ void scheduleWithData(PcbPointer* queues, int q) {
         InputDataPointer data = extractDataFromInput(filePointer, line);
 
         if (data->type == INSERT) {
-            inputDataToQueue(queues, data);
+            inputDataToQueue(queues, data, time, timeoutCount);
             free(data);
         } else if (data->type == TIMEOUT) {
-            timeoutSchedule(queues, data, q);
+            timeoutCount++;
+            scheduleProcess(queues, time, elapsedTime);
         } else if (data->type == COMPLETE) {
             break;
         } else {
@@ -92,7 +105,7 @@ FILE* openFile(void) {
 }
 
 InputDataPointer extractDataFromInput(FILE* filePointer, char* line) {
-    char buffer[256] = { NULL };
+    char buffer[256] = { 0 };
     line = fgets(buffer, 256, filePointer);
 
     char* newLine = strchr(line, '\n');
@@ -105,118 +118,169 @@ InputDataPointer extractDataFromInput(FILE* filePointer, char* line) {
 
 InputDataPointer extractValue(char* line) {
     char* dataType= strtok(line, " ");
+    char* dataId = strtok(NULL, " ");
     char* dataPriority = strtok(NULL, " ");
     char* dataComputingTime = strtok(NULL, " ");
 
     InputDataPointer result = (InputDataPointer) malloc(sizeof(struct InputData));
     result->type = atoi(dataType);
-    result->priority = dataPriority == NULL ? 0 : atoi(dataPriority); 
+    result->processId = dataId == NULL ? 0 : atoi(dataId);
+    result->priority = dataPriority == NULL ? 0 : atoi(dataPriority);
     result->computingTime = dataComputingTime == NULL ? 0 : atoi(dataComputingTime);
     return result;
 }
 
-void inputDataToQueue(PcbPointer* queues, InputDataPointer data) {
-    //TODO: queue에 데이터 삽입 구현
+void inputDataToQueue(PcbPointer* queues, InputDataPointer data, int t, int timeoutCount) {
     PcbPointer newJob = (PcbPointer) malloc(sizeof(struct Pcb));
-    PcbPointer currentJob = NULL;
 
     if (newJob == NULL) {
         printf("Memory allocation error\n");
         exit(0);
     }
 
+    newJob->processId = data->processId;
     newJob->priority = data->priority;
+    newJob->remainTime = data->computingTime;
     newJob->computingTime = data->computingTime;
     newJob->rightLink = NULL;
     newJob->leftLink = NULL;
     newJob->queueId = 0;
+    newJob->turnAroundTime = 0;
+    newJob->arrivalTime = t * timeoutCount;
 
-    if (queues[0] == NULL) {
+    if (isQueueEmpty(queues, 0)) {
         queues[0] = newJob;
         return;
-    }
-
-    currentJob = queues[0];
-    if (currentJob == NULL) {
-        queues[0]->rightLink = newJob;
-        newJob->leftLink = queues[0];
     } else {
-        inputPcbToQueueLast(currentJob, newJob);
+        inputPcbToQueueLast(&queues[0], &newJob);
     }
 }
 
-void inputPcbToQueueLast(PcbPointer* currentJob, PcbPointer* newJob) {
-    while (currentJob->rightLink != NULL) {
-        currentJob = currentJob->rightLink;
-    }
-    currentJob->rightLink = newJob;
-    newJob->leftLink = currentJob;
+bool isQueueEmpty(PcbPointer* queues, int queueIndex) {
+    return queues[queueIndex] == NULL;
 }
 
-int timeoutSchedule(PcbPointer* queues, InputDataPointer data, int q) {
-    //TODO: 타임아웃 스케줄링
-    //1. 스케줄링할 큐 선정
-    //2. 큐에서 데이터 스케줄링
-    //3. 선점점에 도달하는 데이터인지 아닌지 확인하고
-    //4. 각각 별도로 스케줄링.
-    PcbPointer selectedPcb = NULL;
-    PcbPointer currentJob = NULL;
+void inputPcbToQueueLast(PcbPointer* queue, PcbPointer* pcb) {
+    PcbPointer head = (*queue);
+
+    while (head->rightLink != NULL) {
+        head = head->rightLink;
+    }
+
+    head->rightLink = (*pcb);
+    (*pcb)->leftLink = head;
+}
+
+int scheduleProcess(PcbPointer* queues, int time, int* elapsedTime) {
+    PcbPointer selectedQueue = NULL;
     int queueIndex;
 
-    for (queueIndex = 0; queues[queueIndex] != NULL; queueIndex++) {
-        selectedPcb = queues[queueIndex];
+    for (queueIndex = 0; queueIndex < QUEUE_SIZE; queueIndex++) {
+        selectedQueue = queues[queueIndex];
+        if (selectedQueue != NULL) {
+            break;
+        }
+    }
+    
+    if (selectedQueue == NULL) {
+        //printf("\t\t\t\t\t\t\t\t\t\t\t------------------Empty------------------\n");
+        return QUEUE_EMPTY;
     }
 
-    if (queues[queueIndex] == NULL) {
-        return -1;
+    int timeForEachQueue = time;
+    if (isNotFirstQueue(queueIndex)) {
+        timeForEachQueue = (int) pow(time, queueIndex);
     }
 
-    //TODO: 시간 할당량 선정
-    if (isUnderTimeQuantum(selectedPcb->computingTime, q)) {
-        selectedPcb->computingTime = 0;
-        selectedPcb->turnAroundTime; //TODO: 도착 시간을 어떻게 구할 것 인
+    //printAllDataInQueues(queues, (*elapsedTime));
 
-        queues[queueIndex] = selectedPcb->rightLink;
-        selectedPcb->rightLink->leftLink=NULL;
-        selectedPcb->rightLink = NULL;
+    removePcbLink(&queues[queueIndex], &selectedQueue);
 
-        free(selectedPcb);
+    if (isUnderTimeQuantum(selectedQueue->remainTime, timeForEachQueue)) {
+        (*elapsedTime) += selectedQueue->remainTime;
+        selectedQueue->turnAroundTime = (*elapsedTime) - selectedQueue->arrivalTime;
+
+        selectedQueue->remainTime = 0;
+
+        printPcbInfo(selectedQueue);
+        free(selectedQueue);
     } else {
-        selectedPcb->computingTime -= q;
-        selectedPcb->turnAroundTime; //TODO: 도착 시간을 어떻게 구할 것 인가?
+        (*elapsedTime)+= timeForEachQueue;
 
-        queues[queueIndex] = selectedPcb->rightLink;
-        selectedPcb->rightLink->leftLink=NULL;
-        selectedPcb->rightLink = NULL;
+        selectedQueue->remainTime -= timeForEachQueue;
 
-        if (isLastQueue(queueIndex)) {
-            currentJob = queues[queueIndex];
-            inputPcbToQueueLast(currentJob, selectedPcb);
-        }
-        
-        if (isNextQueueNotEmpty(queues, queueIndex)) {
-            PcbPointer currentJob = queues[queueIndex + 1];
-            inputPcbToQueueLast(currentJob, selectedPcb);
-        } else {
-            queues[queueIndex + 1] = selectedPcb;
-        }
+        movePcbToNextQueue(queues, &selectedQueue, queueIndex);
     }
 
-    return 1;
+    return SUCCEED;
+}
+
+void printAllDataInQueues(PcbPointer* queues, int elapsedTime) {
+    printf("\n\t\t\t\t\t\t\t\t\t\tTime:%d\n", elapsedTime);
+
+    for (int queueIndex = 0; queueIndex < QUEUE_SIZE; queueIndex++) {
+        if (queues[queueIndex] != NULL) {
+            printf("\t\t\t\t\t\t\t\t\t\tqueue %d: ", queueIndex);
+            PcbPointer head = queues[queueIndex];
+            while (head != NULL) {
+                printf("[%d, %d, %d] ", head->processId, head->priority, head->remainTime);
+                head = head->rightLink;
+            }
+            printf("\n\n");
+        }
+    }
+}
+
+bool isNotFirstQueue(int index) {
+    return index != 0;
+}
+
+void removePcbLink(PcbPointer* queue, PcbPointer* pcb) {
+    if (isLastDataInQueue(*pcb)) {
+        (*queue) = NULL;
+    } else {
+        (*queue) = (*pcb)->rightLink;
+        (*pcb)->rightLink->leftLink=NULL;
+        (*pcb)->rightLink = NULL;
+    }
+}
+
+bool isLastDataInQueue(PcbPointer pcb) {
+    return pcb->rightLink == NULL;
+}
+
+bool isUnderTimeQuantum(int remainTime, int time) {
+    return remainTime <= time;
+}
+
+void printPcbInfo(PcbPointer pcb) {
+    printf(
+        "%d\t\t %d\t\t %d\t\t %d\t\t %d\t\t \n", 
+        pcb->processId, pcb->queueId, pcb->priority, pcb->computingTime,pcb->turnAroundTime);
+}
+
+void movePcbToNextQueue(PcbPointer* queues, PcbPointer* pcb, int queueIndex) { 
+    if (isLastQueue(queueIndex)) {
+        if(isQueueEmpty(queues, queueIndex)) {
+            queues[queueIndex] = (*pcb);
+        } else {
+            inputPcbToQueueLast(&queues[queueIndex], pcb);
+        }
+    } else {
+        (*pcb)->queueId = queueIndex + 1;
+
+        if (isQueueEmpty(queues, queueIndex + 1)) {
+            queues[queueIndex + 1] = (*pcb);
+        } else {
+            inputPcbToQueueLast(&queues[queueIndex + 1], pcb);
+        }
+    }
 }
 
 bool isLastQueue(int index) {
-    return index == QUEUE_SIZE;
+    return index == QUEUE_SIZE - 1;
 }
 
-bool isUnderTimeQuantum(int computingTime, int q) {
-    return computingTime <= q;
-}
-
-bool isNextQueueNotEmpty(PcbPointer* queues, int queueIndex) {
-    return queues[queueIndex + 1] != NULL;
-}
-
-void scheduleWithRemainder() {
-    //TODO: 나머지 스케줄링
+void scheduleWithRemainder(PcbPointer* queues, int time, int* elapsedTime) {
+    while (scheduleProcess(queues, time, elapsedTime) == SUCCEED);
 }
